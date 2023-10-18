@@ -5,11 +5,10 @@ from sklearn.cluster import AffinityPropagation
 from sklearn.preprocessing import StandardScaler
 import pandas as pd
 
-company_symbol_mapping = {
-    'AAPL': 'Apple Inc.',
-    'MSFT': 'Microsoft Corporation',
-    # Додайте інші символічні позначення компаній тут
-}
+# Завантаження символьних позначень компаній
+with open('company_symbol_mapping.json', 'r') as file:
+    company_symbol_mapping = json.load(file)
+
 # Завантаження даних котирувань за допомогою yfinance
 symbols = list(company_symbol_mapping.keys())
 data = yf.download(symbols, start="2000-01-01", end="2010-01-01")
