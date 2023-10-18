@@ -1,41 +1,69 @@
-import numpy as np
+import datetime
 import json
+import numpy as np
+from sklearn import covariance, cluster
 import yfinance as yf
-from sklearn.cluster import AffinityPropagation
-from sklearn.preprocessing import StandardScaler
-import pandas as pd
 
-# Завантаження символьних позначень компаній
-with open('company_symbol_mapping.json', 'r') as file:
-    company_symbol_mapping = json.load(file)
+# Вхідний файл із символічними позначеннями компаній
+input_file = "company_symbol_mapping.json"
 
-# Завантаження даних котирувань за допомогою yfinance
-symbols = list(company_symbol_mapping.keys())
-data = yf.download(symbols, start="2000-01-01", end="2010-01-01")
-closing_prices = data['Adj Close']
+# Завантаження прив'язок символів компаній до їх повних назв
+with open(input_file, "r") as f:
+    company_symbols_map = json.loads(f.read())
 
-# Обчислення різниць між котируваннями при відкритті та закритті біржі
-price_diff = data['Open'] - data['Close']
+symbols, names = np.array(list(company_symbols_map.items())).T
 
-# Нормалізація даних
-scaler = StandardScaler()
-price_diff_normalized = scaler.fit_transform(price_diff)
+# Визначення архівних даних котирувань
+start_date = "2003-07-03"
+end_date = "2007-05-04"
 
-# Створення моделі графа
-preference = -50  # Налаштований параметр вподобання (змініть за потребою)
-affinity_propagation = AffinityPropagation(preference=preference, damping=0.9)
-affinity_propagation.fit(price_diff_normalized)
+# Завантаження архівних даних котирувань
+quotes = []
+valid_symbols = []
+for symbol in symbols:
+    try:
+        data = yf.download(symbol, start=start_date, end=end_date)
+        if not data.empty:
+            quotes.append(data)
+            valid_symbols.append(symbol)
+    except Exception as e:
+        print(f"Failed to download data for {symbol}: {e}")
 
-# Визначення підгруп
-cluster_centers_indices = affinity_propagation.cluster_centers_indices_
-labels = affinity_propagation.labels_
+# Перевірка чи є валідні дані
+if not quotes:
+    print(
+        "No valid data available for any symbol. Check your symbol mapping and data availability."
+    )
+else:
+    # Оновлення символів на дійсні
+    symbols = valid_symbols
 
-# Виведення результатів
-n_clusters_ = len(cluster_centers_indices)
-print(f"Оцінена кількість підгруп: {n_clusters_}")
+    # Вилучення котирувань, що відповідають відкриттю та закриттю біржі
+    opening_quotes = np.array([quote["Open"].values for quote in quotes]).T
+    closing_quotes = np.array([quote["Close"].values for quote in quotes]).T
 
-# Виведення символічних позначень компаній в кожній підгрупі
-for cluster_idx in range(n_clusters_):
-    cluster_mask = labels == cluster_idx
-    companies_in_cluster = [company_symbol_mapping[symbols[i]] for i, is_in_cluster in enumerate(cluster_mask) if is_in_cluster]
-    print(f"Підгрупа {cluster_idx + 1}: {', '.join(companies_in_cluster)}")
+    # Обчислення різниці між двома видами котирувань
+    quotes_diff = closing_quotes - opening_quotes
+
+    # Нормалізація даних
+    X = quotes_diff.copy()
+    X /= X.std(axis=0)
+
+    # Створення моделі графа
+    edge_model = covariance.GraphicalLassoCV()
+
+    # Навчання моделі
+    with np.errstate(invalid="ignore"):
+        edge_model.fit(X)
+
+    # Створення моделі кластеризації на основі поширення подібності
+    _, labels = cluster.affinity_propagation(edge_model.covariance_)
+    num_labels = labels.max()
+
+    # Виведення результатів
+    print("\nClustering of stocks based on difference in opening and closing quotes:\n")
+    for i in range(num_labels + 1):
+        cluster_indices = np.where(labels == i)[0]
+        cluster_names = names[cluster_indices]
+        if len(cluster_names) > 0:
+            print("Cluster", i + 1, "==>", ", ".join(cluster_names))
