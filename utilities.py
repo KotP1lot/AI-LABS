@@ -1,7 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def visualize_classifier(classifier, X, y):
+
+def visualize_classifier(classifier, X, y, title):
     # Define the minimum and maximum values for X and Y
     # that will be used in the mesh grid
     min_x, max_x = X[:, 0].min() - 1.0, X[:, 0].max() + 1.0
@@ -28,6 +29,7 @@ def visualize_classifier(classifier, X, y):
     # Overlay the training points on the plot 
     plt.scatter(X[:, 0], X[:, 1], c=y, s=75, edgecolors='black', linewidth=1, cmap=plt.cm.Paired)
 
+    plt.title(title)
     # Specify the boundaries of the plot
     plt.xlim(x_vals.min(), x_vals.max())
     plt.ylim(y_vals.min(), y_vals.max())
@@ -37,4 +39,3 @@ def visualize_classifier(classifier, X, y):
     plt.yticks((np.arange(int(X[:, 1].min() - 1), int(X[:, 1].max() + 1), 1.0)))
 
     plt.show()
-
